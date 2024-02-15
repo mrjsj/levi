@@ -1,8 +1,9 @@
 import re
-from typing import Optional, List
+from typing import Optional, List, Union
 from deltalake import DeltaTable
 import datetime
 import numpy as np
+import hashlib
 
 import pyarrow.compute as pc 
 import pyarrow as pa
@@ -289,4 +290,49 @@ def type_2_scd_upsert(
             },
             predicate=' or '.join([f"source.{col} != target.{col}" for col in attr_col_names])
         ).execute()
+    )
+
+def with_md5_cols(
+        df: Union[DataFrameObject,DeltaTable],
+        cols: List[str],
+        output_col_name: Optional[str] = None,
+    ):
+    """
+    <description>
+
+    :param df: <description>
+    :type df: DeltaTable or DataFrameObject supported by the DataFrame interchange API
+    :param cols: <description>
+    :type cols: List[str]
+    :param output_col_name: <description>
+    :type output_col_name: str, defaults to empty string.
+
+    :raises TypeError: Raises type if DataFrame cannot be converted to PyArrow table.
+
+    :returns: <description>
+    :rtype: DataFrame
+    """    
+
+    if output_col_name is None:
+        output_col_name = "_".join(["md5"] + cols)
+    if isinstance(df, DeltaTable):
+        df = df.to_pyarrow_table()
+    else:
+        df = pa.interchange.from_dataframe(df)
+
+    return df.append_column(
+        output_col_name,
+        pa.array(
+            [
+                hashlib.md5(str(value).encode('utf-8')).hexdigest() 
+                for value in pc.binary_join_element_wise(
+                    *[
+                        pc.cast(df[col], pa.string()) 
+                        for col in cols
+                    ],
+                    "||"
+                )
+            ],
+            pa.string()
+        )
     )

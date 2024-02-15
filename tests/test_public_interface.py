@@ -591,3 +591,145 @@ def test_type_2_scd_upsert_with_version_number(tmp_path: Path):
 
     assert sorted_actual_table == sorted_expected_table
 
+
+
+
+def test_append_md5_column_one_column_to_df():
+
+
+    schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+    ])
+
+    df = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"]
+        },
+        schema=schema
+    )
+
+
+    df = levi.with_md5_cols(df, ["col2"])
+
+
+    actual_table = df
+    actual_table_sort_indices = pa.compute.sort_indices(actual_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    actual_table_sorted = actual_table.take(actual_table_sort_indices)
+
+    expected_schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+        ("md5_col2", pa.string())
+    ])
+
+    expected_table = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"],
+            "md5_col2": ["7fc56270e7a70fa81a5935b72eacbe29", "9d5ed678fe57bcca610140957afab571", "0d61f8370cad1d412f80b84d143e1257"],
+        },
+        schema=expected_schema   
+    )
+    expected_table_sort_indices = pa.compute.sort_indices(expected_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    expected_table_sorted = expected_table.take(expected_table_sort_indices)
+
+    assert actual_table_sorted == expected_table_sorted
+
+
+
+def test_append_md5_column_one_column_to_delta_table(tmp_path):
+    path = f"{tmp_path}/tmp/append_md5_col_1"
+
+    schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+    ])
+
+    df = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"]
+        },
+        schema=schema
+    )
+
+    write_deltalake(path, df)
+
+    df = levi.with_md5_cols(df, ["col2"])
+
+    write_deltalake(path, df, mode="overwrite", overwrite_schema=True)
+
+
+    actual_table = DeltaTable(path).to_pyarrow_table()
+    actual_table_sort_indices = pa.compute.sort_indices(actual_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    actual_table_sorted = actual_table.take(actual_table_sort_indices)
+
+    expected_schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+        ("md5_col2", pa.string())
+    ])
+
+    expected_table = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"],
+            "md5_col2": ["7fc56270e7a70fa81a5935b72eacbe29", "9d5ed678fe57bcca610140957afab571", "0d61f8370cad1d412f80b84d143e1257"],
+        },
+        schema=expected_schema   
+    )
+    expected_table_sort_indices = pa.compute.sort_indices(expected_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    expected_table_sorted = expected_table.take(expected_table_sort_indices)
+
+    assert actual_table_sorted == expected_table_sorted
+
+
+
+def test_append_md5_column_two_columns_to_df():
+
+
+    schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+        ("col3", pa.string()),
+    ])
+
+    df = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"],
+            "col3": ["D", "E", "F"],
+        },
+        schema=schema
+    )
+
+
+    df = levi.with_md5_cols(df, ["col2", "col3"])
+
+
+    actual_table = df
+    actual_table_sort_indices = pa.compute.sort_indices(actual_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    actual_table_sorted = actual_table.take(actual_table_sort_indices)
+
+    expected_schema = pa.schema([
+        ("col1", pa.int64()),
+        ("col2", pa.string()),
+        ("col3", pa.string()),
+        ("md5_col2_col3", pa.string())
+    ])
+
+    expected_table = pa.Table.from_pydict(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["A", "B", "C"],
+            "col3": ["D", "E", "F"],
+            "md5_col2_col3": ["1c0db82f398c6711f8d4b163706d88aa", "f088740ffe88df7f521292f27623d1fa", "332b9c6f159d4b4862d865199f96b063"],
+        },
+        schema=expected_schema   
+    )
+    expected_table_sort_indices = pa.compute.sort_indices(expected_table, sort_keys=[("col1", "ascending"), ("col2", "ascending")])
+    expected_table_sorted = expected_table.take(expected_table_sort_indices)
+
+    assert actual_table_sorted == expected_table_sorted    
